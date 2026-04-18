@@ -41,17 +41,95 @@ class AgentState(TypedDict):
 
 def parse_brief(state: AgentState) -> AgentState:
     """
-    Extract structured requirements from the brief text.
-    In production, this calls Vertex AI Gemini to analyze the brief.
-    For the POC, we use keyword matching as a fallback.
+    Extract structured requirements from the brief text using Gemini.
+    Falls back to keyword matching if Gemini is unavailable.
     """
-    raw_text = state["raw_text"].lower()
+    import os
+    raw_text = state["raw_text"]
 
-    # Keyword-based extraction (POC fallback)
-    # In production: Gemini parses this with structured output
+    extracted = {
+        "project_type": None,
+        "industry": None,
+        "tone": None,
+        "audience": None,
+        "budget_tier": None,
+        "deliverables": [],
+        "constraints": None,
+        "confidence": 0.0,
+    }
+
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+
+    if api_key:
+        try:
+            from google import genai
+
+            client = genai.Client(api_key=api_key)
+
+            prompt = f"""You are analyzing a design brief for a design agency. Extract the following from the brief text below.
+
+Return ONLY a JSON object with these exact keys (use null if not found):
+- project_type: one of [infographic, annual_report, web_design, branding_identity, social_media, print_collateral, presentation, data_visualization, packaging, editorial_design]
+- industry: one of [healthcare, finance, technology, education, nonprofit, retail, government, real_estate, energy, food_beverage, entertainment, legal, manufacturing, travel_hospitality]. Choose based on the CLIENT'S business domain, not the technical implementation. A travel booking website is travel_hospitality. A healthcare app is healthcare. A fintech platform is finance.
+- tone: one of [minimalist, bold, playful, corporate, elegant, retro, futuristic, organic, editorial, data_driven]
+- audience: a short description of the target audience
+- budget_tier: one of [low, mid, high, premium] or null
+- deliverables: a list of specific deliverables mentioned
+- constraints: any specific constraints or requirements mentioned
+
+Brief text:
+\"\"\"{raw_text}\"\"\"
+
+Return ONLY valid JSON, no markdown, no explanation."""
+
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt,
+            )
+
+            import json
+            response_text = response.text.strip()
+            # Clean up if Gemini wraps in markdown
+            if response_text.startswith("```"):
+                response_text = response_text.split("\n", 1)[1]
+                response_text = response_text.rsplit("```", 1)[0]
+
+            parsed = json.loads(response_text)
+
+            extracted["project_type"] = parsed.get("project_type")
+            extracted["industry"] = parsed.get("industry")
+            extracted["tone"] = parsed.get("tone")
+            extracted["audience"] = parsed.get("audience")
+            extracted["budget_tier"] = parsed.get("budget_tier")
+            extracted["deliverables"] = parsed.get("deliverables", [])
+            extracted["constraints"] = parsed.get("constraints")
+            extracted["confidence"] = 0.9  # Gemini extraction confidence
+
+        except Exception as e:
+            print(f"Gemini extraction failed: {e}, falling back to keyword matching")
+            extracted = _keyword_fallback(raw_text)
+    else:
+        extracted = _keyword_fallback(raw_text)
+
+    trace_entry = {
+        "step": "parse_brief",
+        "output": f"Extracted: type={extracted['project_type']}, industry={extracted['industry']}, tone={extracted['tone']}, audience={extracted.get('audience')}",
+        "method": "gemini" if api_key and extracted["confidence"] > 0.5 else "keyword_fallback",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    state["extracted"] = extracted
+    state["reasoning_trace"].append(trace_entry)
+    return state
+
+
+def _keyword_fallback(raw_text: str) -> dict:
+    """Fallback keyword matching when Gemini is unavailable."""
+    raw_text = raw_text.lower()
+
     project_types = {
         "infographic": ["infographic", "visual summary", "data graphic"],
-        "annual_report": ["annual report", "yearly report", "year in review"],
+        "annual_report": ["annual report", "yearly report", "year in review", "report"],
         "web_design": ["website", "web design", "landing page", "web platform"],
         "branding_identity": ["brand", "identity", "logo", "rebrand"],
         "social_media": ["social media", "instagram", "linkedin", "social campaign"],
@@ -82,7 +160,7 @@ def parse_brief(state: AgentState) -> AgentState:
     tones = {
         "minimalist": ["minimalist", "clean", "simple", "minimal"],
         "bold": ["bold", "strong", "impactful", "striking"],
-        "playful": ["playful", "fun", "colorful", "vibrant", "whimsical"],
+        "playful": ["playful", "fun", "colorful", "vibrant", "whimsical", "bright", "colourful"],
         "corporate": ["corporate", "professional", "business", "formal"],
         "elegant": ["elegant", "luxurious", "sophisticated", "premium"],
         "retro": ["retro", "vintage", "nostalgic", "classic"],
@@ -100,38 +178,25 @@ def parse_brief(state: AgentState) -> AgentState:
         "budget_tier": None,
         "deliverables": [],
         "constraints": None,
-        "confidence": 0.6,  # POC keyword matching confidence
+        "confidence": 0.6,
     }
 
-    # Match project type
     for ptype, keywords in project_types.items():
         if any(kw in raw_text for kw in keywords):
             extracted["project_type"] = ptype
             break
 
-    # Match industry
     for ind, keywords in industries.items():
         if any(kw in raw_text for kw in keywords):
             extracted["industry"] = ind
             break
 
-    # Match tone
     for tone, keywords in tones.items():
         if any(kw in raw_text for kw in keywords):
             extracted["tone"] = tone
             break
 
-    # Log the reasoning step
-    trace_entry = {
-        "step": "parse_brief",
-        "output": f"Extracted: type={extracted['project_type']}, industry={extracted['industry']}, tone={extracted['tone']}",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-
-    state["extracted"] = extracted
-    state["reasoning_trace"].append(trace_entry)
-    return state
-
+    return extracted
 
 # ── Step 2: Plan Search Strategy ─────────────────────────
 
@@ -168,7 +233,7 @@ def plan_search(state: AgentState) -> AgentState:
 
     if not filter_desc:
         plan["strategy"] = "No specific filters extracted. Will rely on semantic similarity only."
-        plan["match_count"] = 10  # Cast a wider net
+        plan["match_count"] = 5 
     else:
         plan["strategy"] = f"Searching with {', '.join(filter_desc)}. Will combine filtered results with semantic similarity."
 

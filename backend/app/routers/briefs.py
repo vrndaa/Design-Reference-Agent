@@ -32,18 +32,52 @@ async def upload_brief(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Upload a brief as a file (PDF, DOCX, or TXT)."""
+    """Upload a brief as a file (PDF, DOCX, or TXT) and extract text using Gemini."""
+    import os
     content = await file.read()
 
-    # For the POC, we extract raw text from the file
-    # In production, this would use Vertex AI Document AI
     if file.filename.endswith(".txt"):
         raw_text = content.decode("utf-8")
     elif file.filename.endswith(".pdf"):
-        # Placeholder: in production, use Document AI
-        raw_text = f"[PDF content from {file.filename} — Document AI extraction pending]"
+        # Use Gemini to extract and summarize the PDF content
+        api_key = os.getenv("GOOGLE_API_KEY", "")
+        if api_key:
+            try:
+                from google import genai
+                import base64
+
+                client = genai.Client(api_key=api_key)
+
+                pdf_base64 = base64.b64encode(content).decode("utf-8")
+
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "inline_data": {
+                                        "mime_type": "application/pdf",
+                                        "data": pdf_base64,
+                                    }
+                                },
+                                {
+                                    "text": "Read this design brief PDF and extract all the content. Return the full text of the brief including any requirements, specifications, preferences, target audience, timeline, and deliverables mentioned. Return only the extracted text, no commentary."
+                                },
+                            ],
+                        }
+                    ],
+                )
+
+                raw_text = response.text.strip()
+
+            except Exception as e:
+                print(f"Gemini PDF extraction failed: {e}")
+                raw_text = f"[PDF extraction failed for {file.filename}. Error: {str(e)}]"
+        else:
+            raw_text = f"[PDF content from {file.filename} — no API key configured]"
     elif file.filename.endswith(".docx"):
-        # Placeholder: in production, use Document AI
         raw_text = f"[DOCX content from {file.filename} — Document AI extraction pending]"
     else:
         raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, DOCX, or TXT.")
