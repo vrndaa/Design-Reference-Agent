@@ -130,16 +130,49 @@ function ResultsPage() {
         <div style={{ maxWidth: '900px', margin: '2rem auto', padding: '0 2rem' }}>
           <h3 style={{
             color: '#5C4F42', fontSize: '0.85rem', textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}>Agent Reasoning</h3>
+            letterSpacing: '0.05em', marginBottom: '0.75rem',
+          }}>Brief Analysis</h3>
           <div style={{
-            backgroundColor: '#F0EBE3', borderRadius: '8px', padding: '1rem 1.5rem',
+            backgroundColor: '#F0EBE3', borderRadius: '8px', padding: '1.25rem 1.5rem',
           }}>
-            {currentData.agent_reasoning.map((step, i) => (
-              <p key={i} style={{ color: '#5C4F42', fontSize: '0.9rem', margin: '0.5rem 0', lineHeight: 1.5 }}>
-                <strong>{step.step}:</strong> {step.output}
-              </p>
-            ))}
+            {(() => {
+              const parseStep = currentData.agent_reasoning.find((s: any) => s.step === 'parse_brief');
+              if (!parseStep) return null;
+              const tags = parseStep.tags || {};
+              const keyReqs = parseStep.key_requirements || [];
+              return (
+                <>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: keyReqs.length > 0 ? '1rem' : 0 }}>
+                    {Object.entries(tags).map(([label, value]) => (
+                      <span key={label} style={{
+                        backgroundColor: '#2C2420', color: '#FAF7F2',
+                        padding: '0.3rem 0.75rem', borderRadius: '4px', fontSize: '0.8rem',
+                      }}>
+                        {label}: {String(value)}
+                      </span>
+                    ))}
+                  </div>
+                  {keyReqs.length > 0 && (
+                    <div>
+                      <p style={{
+                        color: '#5C4F42', fontSize: '0.75rem', textTransform: 'uppercase',
+                        letterSpacing: '0.05em', marginBottom: '0.4rem', fontWeight: 600,
+                      }}>Key Requirements Identified</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        {keyReqs.map((req: string, i: number) => (
+                          <p key={i} style={{
+                            color: '#5C4F42', fontSize: '0.85rem', margin: 0, lineHeight: 1.5,
+                            paddingLeft: '0.75rem', borderLeft: '2px solid #D4C9BA',
+                          }}>
+                            {req}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

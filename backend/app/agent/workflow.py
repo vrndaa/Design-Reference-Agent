@@ -55,6 +55,7 @@ def parse_brief(state: AgentState) -> AgentState:
         "budget_tier": None,
         "deliverables": [],
         "constraints": None,
+        "key_requirements": [],
         "confidence": 0.0,
     }
 
@@ -76,6 +77,7 @@ Return ONLY a JSON object with these exact keys (use null if not found):
 - budget_tier: one of [low, mid, high, premium] or null
 - deliverables: a list of specific deliverables mentioned
 - constraints: any specific constraints or requirements mentioned
+- key_requirements: Extract the most important design requirements from the brief as a list of short phrases. These should capture WHAT the client wants in their own language. Examples: "visual-forward layout with large imagery", "brand storytelling through traditional motifs", "clean data-driven dashboard", "bold typography that conveys authority". Extract between 2 and 5 requirements. Each should be a specific, concrete design need — not generic labels.
 
 Brief text:
 \"\"\"{raw_text}\"\"\"
@@ -83,13 +85,12 @@ Brief text:
 Return ONLY valid JSON, no markdown, no explanation."""
 
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=prompt,
             )
 
             import json
             response_text = response.text.strip()
-            # Clean up if Gemini wraps in markdown
             if response_text.startswith("```"):
                 response_text = response_text.split("\n", 1)[1]
                 response_text = response_text.rsplit("```", 1)[0]
@@ -103,7 +104,8 @@ Return ONLY valid JSON, no markdown, no explanation."""
             extracted["budget_tier"] = parsed.get("budget_tier")
             extracted["deliverables"] = parsed.get("deliverables", [])
             extracted["constraints"] = parsed.get("constraints")
-            extracted["confidence"] = 0.9  # Gemini extraction confidence
+            extracted["key_requirements"] = parsed.get("key_requirements", [])
+            extracted["confidence"] = 0.9
 
         except Exception as e:
             print(f"Gemini extraction failed: {e}, falling back to keyword matching")
@@ -111,8 +113,20 @@ Return ONLY valid JSON, no markdown, no explanation."""
     else:
         extracted = _keyword_fallback(raw_text)
 
+    tags = {}
+    if extracted["project_type"]:
+        tags["Type"] = extracted["project_type"].replace("_", " ").title()
+    if extracted["industry"]:
+        tags["Industry"] = extracted["industry"].replace("_", " ").title()
+    if extracted["tone"]:
+        tags["Tone"] = extracted["tone"].replace("_", " ").title()
+    if extracted.get("audience"):
+        tags["Audience"] = extracted["audience"]
+
     trace_entry = {
         "step": "parse_brief",
+        "tags": tags,
+        "key_requirements": extracted.get("key_requirements", []),
         "output": f"Extracted: type={extracted['project_type']}, industry={extracted['industry']}, tone={extracted['tone']}, audience={extracted.get('audience')}",
         "method": "gemini" if api_key and extracted["confidence"] > 0.5 else "keyword_fallback",
         "timestamp": datetime.utcnow().isoformat(),
@@ -178,6 +192,7 @@ def _keyword_fallback(raw_text: str) -> dict:
         "budget_tier": None,
         "deliverables": [],
         "constraints": None,
+        "key_requirements": [],
         "confidence": 0.6,
     }
 
@@ -323,47 +338,128 @@ def synthesize_recommendations(state: AgentState) -> AgentState:
     Rank candidates and generate explanations for why each project
     is a good reference for the brief.
 
-    In production, Gemini generates the explanations.
-    For the POC, we build explanations from metadata matching.
+    Uses Gemini to connect the brief's specific requirements to each
+    project's actual design decisions. Falls back to metadata matching
+    if Gemini is unavailable.
     """
+    import os
     extracted = state["extracted"]
     candidates = state["candidate_projects"]
+    key_requirements = extracted.get("key_requirements", [])
     recommendations = []
+
+    api_key = os.getenv("GOOGLE_API_KEY", "")
 
     for rank, project in enumerate(candidates, start=1):
         matched_on = []
-        reasoning_parts = []
 
-        # Check what matched
         if extracted["project_type"] and project.project_type == extracted["project_type"]:
             matched_on.append("project_type")
-            reasoning_parts.append(
-                f"This is a {project.project_type.replace('_', ' ')} project, matching the brief's deliverable type."
-            )
-
         if extracted["industry"] and project.industry == extracted["industry"]:
             matched_on.append("industry")
-            reasoning_parts.append(
-                f"It was created for the {project.industry.replace('_', ' ')} industry, aligning with the brief's sector."
-            )
-
         if extracted["tone"] and project.visual_tone == extracted["tone"]:
             matched_on.append("visual_tone")
-            reasoning_parts.append(
-                f"The {project.visual_tone} visual tone matches the brief's desired aesthetic."
-            )
 
-        # Add project-specific context
-        reasoning_parts.append(
-            f"Completed in {project.year_completed} for {project.client.name if project.client else 'an unnamed client'}, "
-            f"using a {project.layout_style.replace('_', ' ')} layout with {', '.join(project.fonts_used[:2])} typography."
+        score = len(matched_on) / 3.0
+        score = max(score, 0.3)
+
+        project_context = (
+            f"Title: {project.title}. "
+            f"Type: {project.project_type.replace('_', ' ')}. "
+            f"Industry: {project.industry.replace('_', ' ')}. "
+            f"Visual tone: {project.visual_tone}. "
+            f"Layout: {project.layout_style.replace('_', ' ')}. "
+            f"Fonts: {', '.join(project.fonts_used)}. "
+            f"Tools: {', '.join(project.tools_used)}. "
+            f"Description: {project.description}"
         )
 
-        # Calculate a simple relevance score based on matches
-        score = len(matched_on) / 3.0  # Normalize to 0-1 based on 3 possible matches
-        score = max(score, 0.3)  # Minimum score for being in the candidate list
+        reasoning = ""
+        requirements_met = []
+        if api_key and key_requirements:
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
 
-        reasoning = " ".join(reasoning_parts)
+                prompt = f"""You are a design consultant evaluating whether a past project is a good reference for a new design brief.
+
+THE BRIEF'S KEY REQUIREMENTS:
+{json.dumps(key_requirements)}
+
+THE CANDIDATE PROJECT:
+{project_context}
+
+For each requirement from the brief, determine if this project addresses it. If it does, explain HOW with a specific design decision from the project (layout, typography, color, tools, composition style, etc.).
+
+Return ONLY a JSON object:
+{{
+  "requirements_met": [
+    {{
+      "requirement": "the requirement text from the brief",
+      "met": true or false,
+      "explanation": "One sentence explaining how the project fulfills this (reference a specific design choice). Leave empty string if not met."
+    }}
+  ]
+}}
+
+Be specific. Don't say "it matches the tone." Say what design decision creates that tone — the layout style, the typography choice, the color approach, the photography use, etc.
+
+Return ONLY valid JSON, no markdown."""
+
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                )
+
+                response_text = response.text.strip()
+                if response_text.startswith("```"):
+                    response_text = response_text.split("\n", 1)[1]
+                    response_text = response_text.rsplit("```", 1)[0]
+
+                parsed = json.loads(response_text)
+                requirements_met = parsed.get("requirements_met", [])
+
+                met_count = sum(1 for r in requirements_met if r.get("met"))
+                total_count = len(requirements_met)
+
+                reasoning_parts = [f"Matched {met_count}/{total_count} requirements."]
+                for req in requirements_met:
+                    if req.get("met") and req.get("explanation"):
+                        reasoning_parts.append(
+                            f'The brief asked for "{req["requirement"]}" — {req["explanation"]}'
+                        )
+
+                reasoning = " ".join(reasoning_parts)
+
+                if total_count > 0:
+                    req_score = met_count / total_count
+                    score = (score + req_score) / 2
+
+            except Exception as e:
+                print(f"Gemini synthesis failed for project {project.title}: {e}")
+                reasoning = ""
+
+        if not reasoning:
+            reasoning_parts = []
+            if "project_type" in matched_on:
+                reasoning_parts.append(
+                    f"This is a {project.project_type.replace('_', ' ')} project, matching the brief's deliverable type."
+                )
+            if "industry" in matched_on:
+                reasoning_parts.append(
+                    f"It was created for the {project.industry.replace('_', ' ')} industry, aligning with the brief's sector."
+                )
+            if "visual_tone" in matched_on:
+                reasoning_parts.append(
+                    f"The {project.visual_tone} visual tone matches the brief's desired aesthetic."
+                )
+            reasoning_parts.append(
+                f"Completed in {project.year_completed} for {project.client.name if project.client else 'an unnamed client'}, "
+                f"using a {project.layout_style.replace('_', ' ')} layout with {', '.join(project.fonts_used[:2])} typography."
+            )
+            reasoning = " ".join(reasoning_parts)
+
+        score = max(score, 0.3)
 
         recommendations.append({
             "project": project,
@@ -372,6 +468,10 @@ def synthesize_recommendations(state: AgentState) -> AgentState:
             "reasoning": reasoning,
             "matched_on": matched_on,
         })
+
+    recommendations.sort(key=lambda r: r["similarity_score"], reverse=True)
+    for i, rec in enumerate(recommendations, start=1):
+        rec["rank"] = i
 
     trace_entry = {
         "step": "synthesize",
@@ -382,7 +482,6 @@ def synthesize_recommendations(state: AgentState) -> AgentState:
     state["recommendations"] = recommendations
     state["reasoning_trace"].append(trace_entry)
     return state
-
 
 # ── Main Agent Runner ─────────────────────────────────────
 
@@ -478,4 +577,4 @@ def run_agent(brief: Brief, db: Session) -> RecommendationListOut:
         brief.status = "failed"
         db.commit()
         state["error"] = str(e)
-        raise
+        raise 

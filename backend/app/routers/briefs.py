@@ -41,6 +41,8 @@ async def upload_brief(
     elif file.filename.endswith(".pdf"):
         # Use Gemini to extract and summarize the PDF content
         api_key = os.getenv("GOOGLE_API_KEY", "")
+        print ()
+
         if api_key:
             try:
                 from google import genai
@@ -51,7 +53,7 @@ async def upload_brief(
                 pdf_base64 = base64.b64encode(content).decode("utf-8")
 
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=[
                         {
                             "role": "user",
