@@ -121,17 +121,11 @@ def process_brief(brief_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Brief not found")
 
     if brief.status == "complete":
-        # Return existing recommendations
-        recs = (
-            db.query(Recommendation)
-            .filter(Recommendation.brief_id == brief_id)
-            .order_by(Recommendation.rank)
-            .all()
-        )
-        return RecommendationListOut(
-            brief_id=brief_id,
-            recommendations=[RecommendationOut.model_validate(r) for r in recs],
-        )
+        # Clear old recommendations and session so agent runs fresh
+        db.query(Recommendation).filter(Recommendation.brief_id == brief_id).delete()
+        db.query(AgentSession).filter(AgentSession.brief_id == brief_id).delete()
+        brief.status = "pending"
+        db.commit()
 
     # Import and run the agent
     from app.agent.workflow import run_agent
