@@ -8,12 +8,6 @@ Agent searches the database — Filters by project type, industry, and visual to
 Agent explains matches — For each result, Gemini evaluates the brief's requirements against the project's actual design decisions and explains what matched and why
 Designer takes action — Preview the template, copy color palettes, or jump straight into Figma
 
-Architecture
-┌─────────────────┐       ┌──────────────────────────────┐      ┌─────────────────┐
-│    Frontend      │     │         Backend               │     │    Database      │
-│  React + TS      │────▶│  FastAPI + Gemini AI Agent    │────▶│  PostgreSQL      │
-│  Vite            │◀────│  4-step reasoning pipeline    │◀────│  500 projects    │
-└─────────────────┘      └──────────────────────────────┘       └─────────────────┘
 Agent Pipeline:
 
 Parse — Extract structured requirements + key design needs from the brief
