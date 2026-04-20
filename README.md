@@ -50,9 +50,3 @@ bashcd frontend
 npm install
 npm run dev
 Open http://localhost:5173
-Next Steps
-
-Figma API integration — Auto-create a Figma file with the matched template's layout, colors, and fonts pre-loaded
-Mix & match across results — Drag a color palette from one result onto another's template, or use a hue slider to shift palettes while preserving color relationships
-Semantic search with embeddings — Move beyond metadata filtering to meaning-based project matching
-Feedback loop — Track which recommendations designers actually use to improve ranking over time
