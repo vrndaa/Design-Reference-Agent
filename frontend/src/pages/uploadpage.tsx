@@ -108,7 +108,7 @@ function UploadPage() {
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#FAF7F2',
-      fontFamily: 'Georgia, serif',
+      fontFamily: 'Arial, sans-serif',
     }}>
       <header style={{
         padding: '2rem 3rem',
@@ -117,9 +117,7 @@ function UploadPage() {
         <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#2C2420', margin: 0 }}>
           Design Reference Agent
         </h1>
-        <p style={{ color: '#8C7E6E', margin: '0.25rem 0 0', fontSize: '0.9rem' }}>
-          Upload a brief. Get matched with past projects.
-        </p>
+    
       </header>
 
       <main style={{ maxWidth: '640px', margin: '3rem auto', padding: '0 2rem' }}>
@@ -138,7 +136,7 @@ function UploadPage() {
           style={{
             width: '100%', padding: '0.75rem 1rem', marginBottom: '1.5rem',
             border: '1px solid #D4C9BA', borderRadius: '6px', backgroundColor: '#fff',
-            fontSize: '1rem', fontFamily: 'Georgia, serif', color: '#2C2420',
+            fontSize: '1rem', fontFamily: 'Arial, sans-serif', color: '#2C2420',
           }}
         >
           <option value="">Select a designer...</option>
@@ -160,7 +158,7 @@ function UploadPage() {
           style={{
             width: '100%', padding: '0.75rem 1rem', marginBottom: '1.5rem',
             border: '1px solid #D4C9BA', borderRadius: '6px', backgroundColor: '#fff',
-            fontSize: '1rem', fontFamily: 'Georgia, serif', color: '#2C2420',
+            fontSize: '1rem', fontFamily: 'Arial, sans-serif', color: '#2C2420',
           }}
         >
           <option value="">Select brief type...</option>
@@ -231,7 +229,7 @@ function UploadPage() {
           style={{
             width: '100%', padding: '0.75rem 1rem', marginBottom: '1.5rem',
             border: '1px solid #D4C9BA', borderRadius: '6px', backgroundColor: '#fff',
-            fontSize: '1rem', fontFamily: 'Georgia, serif', color: '#2C2420',
+            fontSize: '1rem', fontFamily: 'Arial, sans-serif', color: '#2C2420',
             resize: 'vertical' as const, lineHeight: 1.6, boxSizing: 'border-box' as const,
           }}
         />

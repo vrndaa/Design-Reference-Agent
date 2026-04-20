@@ -54,7 +54,7 @@ function ResultsPage() {
     return (
       <div style={{
         minHeight: '100vh', backgroundColor: '#FAF7F2',
-        fontFamily: 'Georgia, serif', padding: '4rem 2rem', textAlign: 'center',
+        fontFamily: 'Arial, sans-serif', padding: '4rem 2rem', textAlign: 'center',
       }}>
         <h2 style={{ color: '#2C2420' }}>No results found</h2>
         <p style={{ color: '#8C7E6E' }}>Submit a brief first.</p>
@@ -87,7 +87,7 @@ function ResultsPage() {
 
   return (
     <div style={{
-      minHeight: '100vh', backgroundColor: '#FAF7F2', fontFamily: 'Georgia, serif',
+      minHeight: '100vh', backgroundColor: '#FAF7F2', fontFamily: 'Arial, sans-serif',
     }}>
       <header style={{
         padding: '2rem 3rem', borderBottom: '1px solid #E8E0D4',
@@ -108,7 +108,7 @@ function ResultsPage() {
             style={{
               padding: '0.5rem 1.5rem', backgroundColor: '#5C4F42', color: '#FAF7F2',
               border: 'none', borderRadius: '6px', cursor: isRegenerating ? 'not-allowed' : 'pointer',
-              fontFamily: 'Georgia, serif', opacity: isRegenerating ? 0.6 : 1,
+              fontFamily: 'Arial, sans-serif', opacity: isRegenerating ? 0.6 : 1,
             }}
           >
             {isRegenerating ? 'Regenerating...' : 'Regenerate'}
@@ -118,7 +118,7 @@ function ResultsPage() {
             style={{
               padding: '0.5rem 1.5rem', backgroundColor: 'transparent', color: '#2C2420',
               border: '1px solid #D4C9BA', borderRadius: '6px', cursor: 'pointer',
-              fontFamily: 'Georgia, serif',
+              fontFamily: 'Arial, sans-serif',
             }}
           >
             New Brief
@@ -285,7 +285,7 @@ function ResultsPage() {
                   backgroundColor: expandedCard === rec.id ? '#5C4F42' : 'transparent',
                   color: expandedCard === rec.id ? '#FAF7F2' : '#2C2420',
                   border: '1px solid #D4C9BA', borderRadius: '6px', cursor: 'pointer',
-                  fontFamily: 'Georgia, serif', fontSize: '0.85rem',
+                  fontFamily: 'Arial, sans-serif', fontSize: '0.85rem',
                 }}
               >
                 {expandedCard === rec.id ? 'Hide Template Preview' : 'Preview Template'}
@@ -296,7 +296,7 @@ function ResultsPage() {
                   flex: 1, padding: '0.6rem 1.5rem',
                   backgroundColor: '#0D99FF', color: '#FFFFFF',
                   border: 'none', borderRadius: '6px', cursor: 'pointer',
-                  fontFamily: 'Georgia, serif', fontSize: '0.85rem',
+                  fontFamily: 'Arial, sans-serif', fontSize: '0.85rem',
                   fontWeight: 500,
                 }}
               >
